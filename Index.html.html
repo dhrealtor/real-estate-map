@@ -1,0 +1,1181 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+<title>Real Estate Project Map with Filters</title>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+<style>
+    body, html {
+      margin: 0;
+      padding: 0;
+      font-family: Arial, sans-serif;
+    }
+    #filters {
+      position: absolute;
+      z-index: 1000;
+      top: 10px;
+      left: 10px;
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      width: 300px;
+    }
+    #filters h3 {
+      margin-top: 0;
+      color: #333;
+    }
+    .filter-group {
+      margin-bottom: 15px;
+    }
+    .filter-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #444;
+    }
+    .filter-group select, .filter-group input {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      font-size: 14px;
+    }
+    .filter-button {
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 14px;
+      margin: 4px 2px;
+      cursor: pointer;
+      border-radius: 4px;
+      width: 100%;
+    }
+    .filter-button.reset {
+      background-color: #f44336;
+    }
+    #map { 
+      height: 100vh;
+      width: 100%;
+    }
+    .popup-content {
+      max-width: 350px;
+      font-family: Arial, sans-serif;
+      font-size: 14px;
+    }
+    .popup-content h4 {
+      margin: 0 0 5px 0;
+      font-size: 18px;
+      color: #2c3e50;
+    }
+    .popup-content b {
+      color: #34495e;
+    }
+    .popup-content ul {
+      padding-left: 20px;
+      margin: 5px 0 10px 0;
+    }
+    .marker-label {
+      background-color: #ffcc00;
+      border: 2px solid #d35400;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: bold;
+      color: #000000;
+      box-shadow: 0px 0px 8px rgba(0,0,0,0.5);
+      white-space: nowrap;
+      transform: translateY(-40px);
+    }
+    @media (max-width: 768px) {
+  #filters {
+    width: 90%;
+    left: 5%;
+    top: 5px;
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .filter-group label,
+  .filter-group select,
+  .filter-group input {
+    font-size: 13px;
+  }
+
+  .filter-button {
+    font-size: 13px;
+    padding: 8px 10px;
+  }
+
+  .marker-label {
+    font-size: 12px;
+    padding: 3px 8px;
+  }
+}
+  
+  #toggleButton {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    z-index: 1100;
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+</style>
+</head>
+<body>
+  <button id="toggleButton" onclick="toggleFilters()">☰</button>
+<div id="filters">
+<h3>Filter Projects</h3>
+<div class="filter-group">
+<label for="typeFilter">Project Type:</label>
+<select id="typeFilter">
+<option value="all">All Types</option>
+<option value="villa">Villa/Townhouse</option>
+<option value="apartment">Apartment</option>
+<option value="plot">Plot</option>
+</select>
+</div>
+<div class="filter-group">
+<label for="locationFilter">Location:</label>
+<select id="locationFilter">
+<option value="all">All Locations</option>
+<option value="zirakpur">Zirakpur</option>
+<option value="mohali">Mohali</option>
+</select>
+</div>
+<div class="filter-group">
+<label for="priceFilter">Price Range:</label>
+<select id="priceFilter">
+<option value="all">All Prices</option>
+<option value="0-1">Below ₹1 Crore</option>
+<option value="1-2">₹1-2 Crore</option>
+<option value="2-3">₹2-3 Crore</option>
+<option value="3-5">₹3-5 Crore</option>
+<option value="5+">Above ₹5 Crore</option>
+</select>
+</div>
+<div class="filter-group">
+<label for="sizeFilter">Size Range (sq.ft):</label>
+<select id="sizeFilter">
+<option value="all">All Sizes</option>
+<option value="0-1000">Below 1000</option>
+<option value="1000-2000">1000-2000</option>
+<option value="2000-3000">2000-3000</option>
+<option value="3000+">Above 3000</option>
+</select>
+</div>
+<button class="filter-button" onclick="applyFilters()">Apply Filters</button>
+<button class="filter-button reset" onclick="resetFilters()">Reset Filters</button>
+</div>
+<div id="map"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js">
+  function toggleFilters() {
+    var filterDiv = document.getElementById("filters");
+    if (filterDiv.style.display === "none") {
+      filterDiv.style.display = "block";
+    } else {
+      filterDiv.style.display = "none";
+    }
+  }
+
+</script>
+<script>
+  var map = L.map('map').setView([30.624, 76.804], 14);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19,
+    attribution: '© OpenStreetMap contributors'
+  }).addTo(map);
+
+  var allMarkers = [];
+  var allLabels = [];
+
+  function extractPriceFromPopup(popupHtml) {
+    // Try to find price in format ₹X,XX,XX,XXX
+    var priceMatch = popupHtml.match(/₹\s*([\d,]+\.?\d*\s*(?:Lakhs?|Cr)?)/i);
+    if (priceMatch) {
+      var priceStr = priceMatch[1].replace(/,/g, '');
+      
+      // Check for Lakhs
+      if (priceMatch[0].toLowerCase().includes('lakh')) {
+        return parseFloat(priceStr) * 100000;
+      }
+      // Check for Crores
+      else if (priceMatch[0].toLowerCase().includes('cr')) {
+        return parseFloat(priceStr) * 10000000;
+      }
+      // Regular price
+      else {
+        return parseFloat(priceStr);
+      }
+    }
+    return null;
+  }
+
+  function extractSizeFromPopup(popupHtml) {
+    // Try to find size in sq.ft
+    var sqftMatch = popupHtml.match(/(\d+)\s*(sq\.?ft|sq\.? ?ft|sq\.? ?feet|square feet)/i);
+    if (sqftMatch) {
+      return parseInt(sqftMatch[1]);
+    }
+    
+    // Try to find size in gaj
+    var gajMatch = popupHtml.match(/(\d+)\s*(गज|gaj)/i);
+    if (gajMatch) {
+      return parseInt(gajMatch[1]) * 9; // Convert gaj to sqft (approx)
+    }
+    
+    return null;
+  }
+
+  function determineType(label) {
+    if (label.includes('🏡') || label.includes('Villa') || label.includes('Townhouse')) {
+      return 'villa';
+    } else if (label.includes('🏢') || label.includes('Apartment') || label.includes('Tower')) {
+      return 'apartment';
+    } else if (label.includes('🏬') || label.includes('Plot')) {
+      return 'plot';
+    }
+    return 'other';
+  }
+
+  function addProject(lat, lon, label, popupHtml, location = 'zirakpur') {
+    var marker = L.marker([lat, lon]).bindPopup(popupHtml);
+    var labelIcon = L.divIcon({
+      className: '',
+      html: `<div class="marker-label">${label}</div>`,
+      iconAnchor: [50, 40]
+    });
+    var labelMarker = L.marker([lat, lon], { icon: labelIcon, interactive: false });
+    
+    // Store references to markers with their properties
+    allMarkers.push({
+      marker: marker,
+      label: labelMarker,
+      price: extractPriceFromPopup(popupHtml),
+      size: extractSizeFromPopup(popupHtml),
+      type: determineType(label),
+      location: location,
+      popupHtml: popupHtml
+    });
+  }
+
+  function applyFilters() {
+    // Get filter values
+    var locationFilter = document.getElementById('locationFilter').value;
+    var typeFilter = document.getElementById('typeFilter').value;
+    var priceFilter = document.getElementById('priceFilter').value;
+    var sizeFilter = document.getElementById('sizeFilter').value;
+    
+    // Clear all existing markers
+    allMarkers.forEach(function(item) {
+      map.removeLayer(item.marker);
+      map.removeLayer(item.label);
+    });
+    
+    // Filter and show markers
+    allMarkers.forEach(function(item) {
+      var show = true;
+      
+      // Location filter
+      if (locationFilter !== 'all' && item.location !== locationFilter) {
+        show = false;
+      }
+
+      // Type filter
+      if (typeFilter !== 'all' && item.type !== typeFilter) {
+        show = false;
+      }
+      
+      // Price filter
+      if (show && priceFilter !== 'all' && item.price) {
+        var price = item.price;
+        switch(priceFilter) {
+          case '0-1': show = price < 10000000; break;
+          case '1-2': show = price >= 10000000 && price < 20000000; break;
+          case '2-3': show = price >= 20000000 && price < 30000000; break;
+          case '3-5': show = price >= 30000000 && price < 50000000; break;
+          case '5+': show = price >= 50000000; break;
+        }
+      }
+      
+      // Size filter
+      if (show && sizeFilter !== 'all' && item.size) {
+        var size = item.size;
+        switch(sizeFilter) {
+          case '0-1000': show = size < 1000; break;
+          case '1000-2000': show = size >= 1000 && size < 2000; break;
+          case '2000-3000': show = size >= 2000 && size < 3000; break;
+          case '3000+': show = size >= 3000; break;
+        }
+      }
+      
+      if (show) {
+        map.addLayer(item.marker);
+        map.addLayer(item.label);
+      }
+    });
+  }
+
+  function resetFilters() {
+    document.getElementById('typeFilter').value = 'all';
+    document.getElementById('priceFilter').value = 'all';
+    document.getElementById('sizeFilter').value = 'all';
+    
+  addProject(30.67527478825703, 76.72892196816596, '🏢 Medallion Aurum', `
+    <div class="popup-content">
+      <h4>Medallion Aurum, Mohali</h4>
+      <b>📐 Unit Sizes:</b>
+      <ul>
+        <li>3+1 BHK: 2950 sq.ft.</li>
+        <li>4+1 BHK: 3900 sq.ft.</li>
+      </ul>
+      <b>💰 Rate:</b> ₹11,000 / sq.ft.
+      <b>📜 Construction Linked Plan:</b>
+      <ul>
+        <li>Starts with 25% within 30 days</li>
+        <li>Then milestone-based payments (Raft, Stilt, 3rd–18th floor, Plumbing, P.O. Work, Possession)</li>
+      </ul>
+      <b>🏗️ Specifications Highlights:</b>
+      <ul>
+        <li>Earthquake-resistant RCC frame</li>
+        <li>Double-height lobby, branded lifts (Mitsubishi/Kone)</li>
+        <li>Modular kitchen, Italian tile flooring, toughened glass, video door phone</li>
+        <li>Branded CP fittings (Grohe/Kohler)</li>
+        <li>False ceilings with ambient lighting</li>
+      </ul>
+    </div>
+  `, 'mohali');
+
+
+  addProject(30.677040577696488, 76.73595551234078, '🏢 Medallion Nova', `
+    <div class="popup-content">
+      <h4>Medallion Nova, Mohali</h4>
+      <b>📐 Unit Sizes:</b>
+      <ul>
+        <li>3 BHK: 1990 sq.ft.</li>
+        <li>3 BHK + Study: 2497 sq.ft.</li>
+      </ul>
+      <b>💰 Rate:</b> ₹10,500 / sq.ft.
+      <b>📜 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>25% of Sale Price within 30 Days</li>
+        <li>10% on Start of Raft</li>
+        <li>10% on Completion of Stilt</li>
+        <li>5% on Completion of 2nd Floor</li>
+        <li>5% on Completion of 4th Floor</li>
+        <li>5% on Completion of 6th Floor</li>
+        <li>5% on Completion of 8th Floor</li>
+        <li>5% on Completion of 10th Floor</li>
+        <li>5% on Completion of 12th Floor</li>
+        <li>10% on Start of Top Floor</li>
+        <li>10% on Start of Plumbing Work</li>
+        <li>5% on Possession</li>
+      </ul>
+      <b>📌 Preferential Location Charges (PLC):</b>
+      <ul>
+        <li>1st Floor: ₹3,50,000</li>
+        <li>2nd Floor: ₹1,50,000</li>
+        <li>3rd Floor: ₹1,00,000</li>
+        <li>12th Floor: ₹1,00,000</li>
+        <li>13th Floor: ₹1,50,000</li>
+        <li>14th Floor: ₹3,50,000</li>
+        <li>Garden Facing (1st to Top Floor): 5% of BSP</li>
+      </ul>
+      <b>💰 Other Charges:</b>
+      <ul>
+        <li>IFMS: ₹2,00,000</li>
+      </ul>
+    </div>
+  `, 'mohali');
+
+  
+  addProject(30.647595007547544, 76.73911562120115, '🏢 The Medallion', `
+    <div class="popup-content">
+      <h4>The Medallion, Mohali</h4>
+      <b>💰 Rate:</b> ₹10,000 / sq.ft.
+      <b>📜 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>₹5 Lakhs on Booking</li>
+        <li>30% of Sale Price (Including Booking Amount) within 30 Days</li>
+        <li>10% on Completion of Stilt</li>
+        <li>10% on Casting of 5th Floor</li>
+        <li>15% on Casting of 10th Floor</li>
+        <li>15% on Casting of 15th Floor</li>
+        <li>15% on Casting of 20th Floor</li>
+        <li>5% + IFMS + PLC + Other Charges on Offer of Possession</li>
+      </ul>
+    </div>
+  `, 'mohali');
+
+  applyFilters();
+  }
+
+  
+  addProject(30.6289941250934, 76.81426188588301, '🏢 Rosero Elena', `
+    <div class="popup-content">
+      <h4>Rosero Elena, Zirakpur</h4>
+      <b>📐 3 BHK Apartments:</b>
+      <ul>
+        <li>1954 sq.ft: ₹1,05,51,000</li>
+        <li>1964 sq.ft: ₹1,06,00,000</li>
+      </ul>
+      <b>🏢 Floor PLC:</b>
+      <ul>
+        <li>1st & 19th Floor: ₹2,00,000</li>
+        <li>2nd & 18th Floor: ₹1,75,000</li>
+        <li>3rd & 17th Floor: ₹1,50,000</li>
+        <li>4th & 16th Floor: ₹1,25,000</li>
+      </ul>
+      <b>🧾 Additional Charges:</b>
+      <ul>
+        <li>Club Elena: ₹1,75,000</li>
+        <li>Power Backup (3 KVA): ₹90,000</li>
+        <li>IFMS: ₹60,000</li>
+        <li>Club/Sports Facing: 5% of BSP</li>
+      </ul>
+    </div>`);
+  addProject(30.628911215677203, 76.80744360037362, '🏢 Suman Marvelous', `
+    <div class="popup-content">
+      <h4>Suman Marvelous</h4>
+      <b>📐 Unit Sizes & Prices:</b>
+      <ul>
+        <li>3 BHK (1486 sq.ft.): ₹92,48,500</li>
+        <li>3 BHK (1565 sq.ft.): ₹96,56,600</li>
+        <li>3 BHK (1720 sq.ft.): ₹1,06,12,000</li>
+      </ul>
+      <b>📅 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>10% of BSP + GST on Booking</li>
+        <li>15% of BSP + GST within 15 Days</li>
+        <li>10% of BSP + GST on Start of Stilt Slab</li>
+        <li>10% of BSP + GST on Start of 2nd Floor Slab</li>
+        <li>10% of BSP + GST on Start of 4th Floor Slab</li>
+        <li>10% of BSP + GST on Start of 7th Floor Slab</li>
+        <li>10% of BSP + GST on Start of 10th Floor Slab</li>
+        <li>10% of BSP + GST on Structure Completion</li>
+        <li>7.5% of BSP + GST on Start of Finishing</li>
+        <li>7.5% of BSP + GST on Possession + Stamp Duty + IFMS + Other Charges</li>
+      </ul>
+    </div>`);
+  addProject(30.61758663637304, 76.78599598350416, '🏢 Affinity Belgravia', `
+    <div class="popup-content">
+      <h4>Affinity Belgravia, Zirakpur</h4>
+      <b>📐 Unit Sizes & BSP:</b>
+      <ul>
+        <li>3 BHK (2150 sq.ft): ₹1,93,50,000</li>
+        <li>3+1 BHK (2650 sq.ft): ₹2,38,50,000</li>
+        <li>4+1 BHK (3380 sq.ft): ₹3,04,20,000</li>
+      </ul>
+      <b>📅 Payment Schedule:</b>
+      <ul>
+        <li>₹11,00,000 on Booking</li>
+        <li>40% of BSP within 15 Days (including booking amount)</li>
+        <li>35% of BSP on Completion of Super Structure</li>
+        <li>20% of BSP on Commencement of Finishing</li>
+        <li>5% of BSP + applicable charges on Completion</li>
+      </ul>
+      <b>💰 Other Charges:</b>
+      <ul>
+        <li>Power Backup (5 KVA): ₹1,75,000</li>
+        <li>IFMS: ₹75,000 (3BHK) / ₹1,00,000 (4BHK)</li>
+        <li>Club Membership: ₹5,00,000</li>
+        <li>Car Parking (One Time): ₹5,00,000</li>
+      </ul>
+      <b>🏷️ Optional PLC:</b>
+      <ul>
+        <li>First Floor: ₹10,00,000</li>
+        <li>2nd to 6th & Top 3 Floors: ₹5,00,000</li>
+        <li>Corner PLC: ₹3,00,000</li>
+        <li>Preferred Location (3+1 BHK): ₹10,00,000</li>
+        <li>Preferred Location (3 & 4+1 BHK): ₹5,00,000</li>
+      </ul>
+    </div>`);
+  addProject(30.630578146508157, 76.80310935208314, `🏡 Mapple Home`, `
+      <div class="popup-content">
+        <h4>Mapple Home</h4>
+        <b>🏠 Villas Available:</b>
+        <ul>
+          <li>4 BHK (1+3, 128 sq.yds): ₹1.55 Cr</li>
+          <li>4 BHK (2+2, 118 sq.yds): ₹1.35 Cr</li>
+        </ul>
+      </div>
+    `);
+  addProject(30.608790991925673, 76.83493844018497, `🏡 Northview Homez`, `<div class="popup-content"><h4>Northview Homez, Zirakpur</h4><b>🏢 Tower A & B (3BHK + Store):</b><ul>  <li>Type A (2400 sq.ft): ₹1,68,00,000</li>  <li>Type B (2310 sq.ft): ₹1,61,70,000</li>  <li>Type C (2255 sq.ft): ₹1,57,85,000</li></ul><b>🏢 Tower C & D:</b><ul>  <li>Type A (2050 sq.ft): ₹1,43,50,000</li>  <li>Type B (1998 sq.ft): ₹1,39,86,000</li>  <li>Type C (1910 sq.ft): ₹1,33,70,000</li></ul><b>🧾 Payment Plan:</b><ul>  <li>10% BSP + GST on Booking</li>  <li>10% on Excavation, Foundation, Basement, Stilt, 2nd, 4th, 6th Floor</li>  <li>5% on 8th Floor, Plaster, Flooring</li>  <li>5% + charges on Possession</li></ul><b>💰 Standard Charges:</b><ul>  <li>Facing Park: ₹2,00,000</li>  <li>Floor Preferential Charges: ₹1L–₹2.5L</li>  <li>Club Membership: ₹1,00,000</li>  <li>IFMS: ₹60,000</li>  <li>Power Backup (5KVA): ₹90,000</li>  <li>Society Maintenance: ₹2/sq.ft for 3 years</li></ul></div>`);
+  addProject(30.64554937375783, 76.79329042166297, `🏢 The Zirk`, `<div class="popup-content"><h4>The Zirk – Tower A</h4><b>📐 3 BHK + Servant + Lounge (2290 sq.ft. + Car Parking)</b><ul>  <li>Basic Sale Price: ₹1,54,57,500</li>  <li>PLC Park Facing A: ₹3,00,000</li>  <li>PLC Corner B: ₹1,50,000</li>  <li>Terrace Charges: On First & Top Floor</li>  <li>Club Membership: ₹1,00,000</li>  <li>Gas Pipeline: ₹25,000</li></ul><b>💰 Floor Premium Charges:</b><ul>  <li>1st: ₹3,00,000 | 2nd: ₹2,50,000 | 3rd: ₹2,00,000 | 4th: ₹1,50,000</li></ul><b>📅 Construction Linked Payment Plan:</b><ul>  <li>10% BSP + GST on Booking</li>  <li>15% within 30 days</li>  <li>10% on Foundation</li>  <li>10% on Stilt + PLC + GST</li>  <li>7.5% on 2nd Floor + FPC + Terrace + GST</li>  <li>7.5% on 4th, 7th, 10th Floor</li>  <li>5% on Brick Work</li>  <li>5% on Internal Plaster + Club Membership + GST</li>  <li>5% on Tiling</li>  <li>5% on Finishing</li>  <li>5% + Power Backup + Gas + IFMS + Others on Possession</li></ul><hr><h4>The Zirk – Towers B, C & D</h4><ul>  <li>3 BHK (1990 sq.ft): ₹1,24,37,500</li>  <li>3 BHK (1900 sq.ft): ₹1,18,75,000</li>  <li>3 BHK (1800 sq.ft): ₹1,12,50,000</li>  <li>3 BHK (1750 sq.ft): ₹1,09,37,500</li></ul><b>💰 Charges:</b><ul>  <li>PLC Park Facing A: ₹3,00,000 | PLC Corner B: ₹1,50,000</li>  <li>Terrace Charges: On First & Top Floor</li>  <li>Club: ₹1,00,000 | Gas: ₹25,000</li></ul><b>💰 Floor Premium Charges:</b><ul>  <li>1st: ₹3,00,000 | 2nd: ₹2,50,000 | 3rd: ₹2,00,000 | 4th: ₹1,50,000</li></ul><b>📅 Payment Plan:</b><ul>  <li>Same as Tower A</li></ul></div>`);
+  addProject(30.646047342929155, 76.7915340450432, '🏡 Prakrit Townhouses', `
+    <div class="popup-content">
+      <h4>Prakrit Townhouses</h4>
+      <b>📐 Unit Sizes & Prices:</b>
+      <ul>
+        <li>100 गज: ₹1,40,00,000</li>
+        <li>115 गज: ₹1,49,00,000</li>
+      </ul>
+      <b>📅 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>10% on Booking</li>
+        <li>15% within a Month</li>
+        <li>10% on Start of Construction</li>
+        <li>10% on Completion of Foundations till Plinth</li>
+        <li>10% on Laying of Ground Floor Slab</li>
+        <li>10% on Laying of First Floor Slab</li>
+        <li>15% on Completion of Brickwork</li>
+        <li>10% on Completion of Flooring</li>
+        <li>10% on Offer of Possession</li>
+      </ul>
+      <b>💰 Other Charges:</b>
+      <ul>
+        <li>Club Membership: ₹75,000</li>
+        <li>IFMS: ₹35,000</li>
+        <li>Power Backup: ₹75,000</li>
+        <li>Preferred Location Charges (PLC): Optional</li>
+      </ul>
+    </div>`);
+  addProject(30.645882676329766, 76.79524368500863, '🏢 TRISHLA CITY', `
+    <div class="popup-content">
+      <h4>TRISHLA CITY – Tower 5A</h4>
+      <b>📐 4 BHK Apartment:</b>
+      <ul>
+        <li>Size: 2750 sq.ft.</li>
+        <li>Price: ₹2.69 Cr</li>
+        
+      </ul>
+    </div>`);
+  addProject(30.648416077527774, 76.79106549700022, '🏡 Highland Luxuria', `
+    <div class="popup-content">
+      <h4>Highland Luxuria – Exclusive Lifestyle Villas</h4>
+      <b>📐 Unit Prices:</b>
+      <ul>
+        <li>Elegance: ₹2,25,00,000</li>
+        <li>Majestic: ₹2,60,00,000</li>
+      </ul>
+      <b>💰 Charges:</b>
+      <ul>
+        <li>PLC: 10%</li>
+        <li>GST: 5%</li>
+        <li>Monthly Maintenance: ₹5,000 + GST</li>
+        <li>IFMS: ₹50,000</li>
+      </ul>
+      <b>📅 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>25% of BSP + GST on Booking & Agreement</li>
+        <li>25% of BSP + GST on Completion of Foundation</li>
+        <li>25% of BSP + GST on Structure Completion</li>
+        <li>25% of BSP + GST on Possession</li>
+      </ul>
+    </div>`);
+  addProject(30.642321350648743, 76.804476525835, '🏬 Amelia Souk', `
+    <div class="popup-content">
+      <h4>Amelia Souk</h4>
+      <b>📐 Plot Sizes & Price:</b>
+      <ul>
+        <li>100 गज</li>
+        <li>132 गज</li>
+        <li>150 गज</li>
+        <li>Rate: ₹75,000 per गज</li>
+      </ul>
+    </div>`);
+  addProject(30.621590393253406, 76.81809275036265, '🏢 Vintage Greens', `
+    <div class="popup-content">
+      <h4>Vintage Greens</h4>
+      <b>📐 Unit Sizes & BSP:</b>
+      <ul>
+        <li>3 BHK (2350 sq.ft): ₹1,85,65,000</li>
+        <li>3+1 BHK (2698 sq.ft): ₹2,13,04,200</li>
+        <li>4+1 BHK (3796 sq.ft): ₹2,99,88,400</li>
+      </ul>
+      <b>📅 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>₹15,00,000 + GST on Booking</li>
+        <li>25% of BSP + GST within a month</li>
+        <li>10% of BSP + GST after 15 days</li>
+        <li>10% of BSP + GST on completion of 3rd floor</li>
+        <li>10% of BSP + GST on completion of 10th floor</li>
+        <li>10% of BSP + GST on completion of 18th floor</li>
+        <li>5% of BSP + GST on completion of super structure</li>
+        <li>10% of BSP + GST on start of finishing work</li>
+        <li>10% of BSP + GST on completion of finishing work</li>
+        <li>10% of BSP + GST on possession</li>
+      </ul>
+      <b>💰 Other Charges (One-Time):</b>
+      <ul>
+        <li>Club Membership: ₹2,00,000</li>
+        <li>IFMS: ₹90,000</li>
+        <li>Power Backup: ₹1,00,000 (5 KVA)</li>
+        <li>Gas Pipeline: ₹20,000</li>
+        <li>Extra Car Parking: ₹3,00,000</li>
+      </ul>
+      <b>🏷️ PLC:</b>
+      <ul>
+        <li>1st to 5th Floor: 5%</li>
+        <li>20th to 25th Floor: 5%</li>
+        <li>Corner Facing: 5%</li>
+      </ul>
+    </div>`);
+  addProject(30.627509020980717, 76.80992616816471, '🏬 HLP Palmilla (Plot)', `
+    <div class="popup-content">
+      <h4>HLP Palmilla</h4>
+      <b>📐 Plot Sizes:</b>
+      <ul>
+        <li>115 गज</li>
+        <li>150 गज</li>
+        <li>250 गज</li>
+        <li>Rate: ₹55,000 per गज</li>
+      </ul>
+    </div>`);
+  addProject(30.617001225827426, 76.80147816276339, '🏢 Green Lotus Utsav', `
+    <div class="popup-content">
+      <h4>Green Lotus Utsav</h4>
+      <b>🏘️ Residential Price List:</b>
+      <table>
+        <tr><th>Category</th><th>Apartments</th><th>Penthouses</th></tr>
+        <tr><td>3 BHK</td><td>₹1,78,50,000</td><td>₹3,67,50,000</td></tr>
+        <tr><td>3 BHK + S</td><td>₹2,14,62,500</td><td>₹4,41,87,500</td></tr>
+        <tr><td>4 BHK</td><td>₹2,66,05,000</td><td>₹5,47,75,000</td></tr>
+        <tr><td>5 BHK + S</td><td>₹3,21,72,500</td><td>₹6,62,37,500</td></tr>
+        <tr><td>5 BHK Duplex</td><td>₹4,88,75,000</td><td>-</td></tr>
+        <tr><td>5 BHK Large</td><td>₹5,31,67,500</td><td>₹8,70,18,750</td></tr>
+        <tr><td>6 BHK Duplex</td><td>₹6,82,97,500</td><td>-</td></tr>
+      </table>
+    </div>`);
+  addProject(30.64428706440891, 76.79674412694206, '🏠 Roma Homes (3 BHK)', `
+    <div class="popup-content">
+      <h4>Roma Homes (3 BHK)</h4>
+      <b>💰 Price:</b>
+      <ul>
+        <li>First Floor: ₹76.90 Lakhs</li>
+        <li>Second Floor: ₹75.90 Lakhs</li>
+        <li>Third Floor: ₹76.90 Lakhs + ₹2 Lakhs (With Roof Rights)</li>
+      </ul>
+      <b>💼 Additional Charges:</b>
+      <ul>
+        <li>IFMS: ₹20,000</li>
+        <li>PLC (Corner + Park + Balcony): 10%</li>
+        <li>Club House: NILL</li>
+        <li>Power Backup (3 KV): ₹80,000</li>
+        <li>Maintenance (18 Months Advance): ₹1,500/month</li>
+      </ul>
+      <b>📅 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>Booking Amount: 10%</li>
+        <li>Within 30 Days from Booking (Agreement): 25% (Including Booking Amount)</li>
+        <li>On Casting of Stilt Roof Slab: 25% (If Applicable)</li>
+        <li>On Casting of 3rd Roof Slab: 25% (If Applicable)</li>
+        <li>Completion of Internal Plaster/Flooring/Woodwork Paint: 25%</li>
+        <li>At Time of Possession: 10% + Other Charges + PLC (if applicable)</li>
+      </ul>
+      <b>🧾 Flexible Payment Plans Available</b>
+    </div>`);
+  addProject(30.647241531138366, 76.79246131049531, '🏢 Atlantis Grand', `
+    <div class="popup-content">
+      <h4>Atlantis Grand</h4>
+      <b>📐 3 BHK Sizes & Prices:</b>
+      <ul>
+        <li>1915 sq.ft (Typical Floor): ₹1,33,00,000</li>
+        <li>1995 sq.ft (Typical Floor): ₹1,39,00,000</li>
+      </ul>
+      <b>📅 Construction Payment Plan:</b>
+      <ul>
+        <li>10% of BSP at Time of Booking</li>
+        <li>15% of BSP within 1 Month</li>
+        <li>25% of BSP on Completion of 7th Floor Roof Slab</li>
+        <li>25% of BSP on Completion of 14th Floor Roof Slab</li>
+        <li>15% of BSP on Start of Tile Work</li>
+        <li>10% of BSP at Time of Possession</li>
+      </ul>
+      <b>💰 Other Charges:</b>
+      <ul>
+        <li>IFMS: ₹75,000</li>
+        <li>Power Backup (5 KVA): ₹1,00,000</li>
+        <li>Club Membership: ₹1,80,000</li>
+      </ul>
+      <b>📌 PLC (As per T&C):</b>
+      <ul>
+        <li>Corner Facing: 5%</li>
+        <li>Park Facing: 7%</li>
+        <li>Corner + Park Facing: 10%</li>
+      </ul>
+    </div>`);
+  addProject(30.630576970903515, 76.83415498165989, '🏬 Central Town (Plot)', `
+    <div class="popup-content">
+      <h4>Central Town</h4>
+      <b>📐 Plot Sizes & Rate:</b>
+      <ul>
+        <li>100 गज</li>
+        <li>125 गज</li>
+        <li>Rate: ₹65,000 per गज</li>
+      </ul>
+    </div>`);
+  addProject(30.63520493637817, 76.81523453234897, '🏢 Savitry Greens', `
+    <div class="popup-content">
+      <h4>Savitry Greens</h4>
+      <b>📐 Unit Sizes & Rates (4+1 BHK):</b>
+      <ul>
+        <li>2772 sq.ft.</li>
+        <li>2875 sq.ft.</li>
+        <li>Rate: ₹5,700 per sq.ft.</li>
+      </ul>
+    </div>`);
+  addProject(30.64061856151304, 76.80494141049516, '🏢 Ananta Aspire', `
+    <div class="popup-content">
+      <h4>Ananta Aspire</h4>
+      <b>📐 Unit Sizes & Rate:</b>
+      <ul>
+        <li>3+1 BHK: 2247 sq.ft.</li>
+        <li>4+1 BHK: 2945 sq.ft.</li>
+        <li>Rate: ₹8,700 per sq.ft.</li>
+      </ul>
+    </div>`);
+  addProject(30.631954494562738, 76.78034637399004, '🏡 Aerovista', `
+    <div class="popup-content">
+      <h4>Aerovista Villas</h4>
+      <b>📐 Villa Details:</b>
+      <ul>
+        <li>Size: 150 गज</li>
+        <li>Rate: ₹9,500 per गज</li>
+      </ul>
+    </div>`);
+  addProject(30.643651817239466, 76.80177002583501, '🏢 Aura Gazania', `
+    <div class="popup-content">
+      <h4>Aura Gazania</h4>
+      <b>📐 Unit Details:</b>
+      <ul>
+        <li>3 BHK + 2 Washroom (1695 sq.ft.): ₹8,600 per sq.ft.</li>
+        <li>3 BHK (1895 sq.ft.): ₹6,900 per sq.ft.</li>
+      </ul>
+    </div>`);
+  addProject(30.627622649366714, 76.82341666816471, '🏢 KS ONE-O-8', `
+    <div class="popup-content">
+      <h4>KS ONE-O-8 (Tower K)</h4>
+      <b>📐 3 BHK Super Area:</b>
+      <ul>
+        <li>2050 sq.ft. & 2140 sq.ft.</li>
+        <li>Rate: ₹8,500 per sq.ft.</li>
+      </ul>
+      <b>📅 Payment Plan:</b>
+      <ul>
+        <li>10% on 1st June 2025</li>
+        <li>15% within 15 Days</li>
+        <li>25% on or before 1st March 2026</li>
+        <li>25% on or before 1st Dec 2026</li>
+        <li>20% on or before 1st Sep 2027</li>
+        <li>5% + Additional + Taxes on Offer of Possession</li>
+      </ul>
+      <b>💰 Additional Charges (at Possession):</b>
+      <ul>
+        <li>Club Membership: ₹4,00,000 + GST</li>
+        <li>Power Backup (3 KVA): ₹1,50,000</li>
+        <li>IFMS: ₹100 per sq.ft.</li>
+        <li>Car Parking: One Free</li>
+      </ul>
+      <b>📌 Preferential Location / Floor Charges:</b>
+      <ul>
+        <li>Park Facing: ₹200/sq.ft.</li>
+        <li>1st Floor: ₹300/sq.ft.</li>
+        <li>2nd Floor: ₹200/sq.ft.</li>
+        <li>3rd Floor: ₹150/sq.ft.</li>
+        <li>Pinnacle Floor 1: ₹300/sq.ft.</li>
+        <li>Pinnacle Floor 2: ₹200/sq.ft.</li>
+        <li>Pinnacle Floor 3: ₹150/sq.ft.</li>
+      </ul>
+    </div>`);
+  addProject(30.6316087969397, 76.78783522014294, '🏢 Galaxy Tower', `
+    <div class="popup-content">
+      <h4>Galaxy Tower</h4>
+      <b>🏷️ Basic Sale Price:</b>
+      <ul>
+        <li>3BHK – Type 1: ₹1,08,00,000</li>
+        <li>2BHK – Type 1: ₹63,00,000</li>
+        <li>2BHK – Type 2: ₹63,00,000</li>
+      </ul>
+      <b>📌 PLC for Floors:</b>
+      <ul>
+        <li>1st Floor: ₹2,50,000</li>
+        <li>2nd Floor: ₹2,00,000</li>
+        <li>12th, 13th Floor: ₹1,50,000</li>
+        <li>14th Floor: ₹2,00,000</li>
+      </ul>
+      <b>💰 Additional Charges:</b>
+      <ul>
+        <li>Fire Fighting: ₹75,000</li>
+        <li>Club Membership: NIL</li>
+        <li>Power Backup (3 KVA): ₹75,000</li>
+        <li>Additional Backup: ₹25,000/KVA</li>
+        <li>Additional Car Parking: ₹3,00,000 (One included in BSP)</li>
+        <li>IFMS (3BHK): ₹75,000</li>
+        <li>IFMS (2BHK): ₹50,000</li>
+        <li>Maintenance (Monthly): 3BHK – ₹3500, 2BHK – ₹2500</li>
+      </ul>
+    </div>`);
+  addProject(30.63043077998849, 76.78792701049483, '🏢 Motia Aero Greens', `
+    <div class="popup-content">
+      <h4>Motia Aero Greens</h4>
+      <b>🏷️ 3BHK (Stilt+3) with Lift</b><br>
+      <ul>
+        <li><b>Basic Sale Price:</b> ₹80,90,000</li>
+        <li><b>Plot Size:</b> 22’3” x 55’ (Approx. 136 Sq. Yd.)</li>
+      </ul>
+      <b>📌 Floor Premium Charges:</b>
+      <ul>
+        <li>1st Floor: ₹2,00,000</li>
+        <li>3rd Floor (with Roof Rights): ₹5,00,000</li>
+      </ul>
+      <b>💰 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>Booking Amount: ₹1,00,000</li>
+        <li>Within 10 days of booking: 25%</li>
+        <li>On completion of 1st Slab: 10%</li>
+        <li>On completion of 2nd Slab: 10%</li>
+        <li>On completion of 3rd Slab: 10%</li>
+        <li>On completion of 4th Slab: 10%</li>
+        <li>On completion of Plaster: 15%</li>
+        <li>On completion of Flooring: 15%</li>
+        <li>At the time of Possession: 5% + IFMS</li>
+      </ul>
+    </div>`);
+  addProject(30.625337759787023, 76.82914468350438, '🏢 El Spazia', `
+    <div class="popup-content">
+      <h4>El Spazia</h4>
+      <b>🏠 3BHK & 3+1BHK Apartments</b><br>
+      <ul>
+        <li><b>3BHK:</b> 1638 sq.ft. @ ₹8750/sq.ft.</li>
+        <li><b>3+1BHK:</b> 2284 sq.ft. @ ₹8500/sq.ft.</li>
+      </ul>
+    </div>`);
+
+  addProject(30.70317324795136, 76.67862901234159, '🏢 Regal Heights', `
+    <div class="popup-content">
+      <h4>Regal Heights, Mohali</h4>
+      <b>📐 Unit Sizes & Pricing:</b>
+      <ul>
+        <li>3 BHK (1800 sq.ft): ₹7,600/sq.ft</li>
+        <li>4 BHK (2160 sq.ft): ₹7,600/sq.ft</li>
+        <li>Sky Villa (4 BHK): ₹2.4 Cr</li>
+      </ul>
+      <b>📌 PLC:</b>
+      <ul>
+        <li>8th–12th: Nil</li>
+        <li>6th & 7th: ₹1,00,000</li>
+        <li>4th & 5th: ₹1,50,000</li>
+        <li>2nd & 3rd: ₹2,00,000</li>
+      </ul>
+      <b>💰 Other Charges:</b>
+      <ul>
+        <li>GST: 5%</li>
+        <li>Club Membership: ₹1,00,000</li>
+        <li>IFMS: ₹50,000</li>
+        <li>Power Backup (5 KVA): ₹1,00,000</li>
+        <li>2nd Car Parking (Optional): ₹2,00,000</li>
+        <li>PLC (Park Facing): 5%</li>
+      </ul>
+    </div>`, 'mohali');
+
+  
+  addProject(30.682020432479128, 76.69240271049638, '🏢 Noble Aurellia', `
+    <div class="popup-content">
+      <h4>Noble Aurellia, Sector 88, Mohali</h4>
+      <b>📐 Unit Sizes (Super Area):</b>
+      <ul>
+        <li>3 BHK: 2651 sq.ft. – Price on Request</li>
+        <li>3+1 BHK: 2901 sq.ft. – Price on Request</li>
+        <li>Sky Villas / Duplex: Details on Request</li>
+      </ul>
+      <b>💰 Additional Charges:</b>
+      <ul>
+        <li>Car Parking: ₹400/sq.ft</li>
+        <li>Club Membership: ₹300/sq.ft</li>
+        <li>Power Backup (5 KVA): ₹75/sq.ft</li>
+        <li>IFMS: ₹25/sq.ft (Net)</li>
+        <li>EDC/IDC: ₹25/sq.ft + GST</li>
+        <li>Fire Fighting, Electrification: ₹25/sq.ft + GST</li>
+        <li>Total Savings & Benefits: ₹1700/sq.ft approx.</li>
+      </ul>
+      <b>📅 Payment Plans:</b>
+      <ul>
+        <li><b>Development Linked Plan (DLP):</b> 5%, 10%, 15%, 15%, 15%, 10%, 10%, 10%, 10% + PLC/Charges</li>
+        <li><b>Time Linked Plan (TLP):</b> 5%, 10%, 35%, 40%, 10% + PLC/Charges</li>
+      </ul>
+      <b>📌 PLC (Preferential Location Charges):</b>
+      <ul>
+        <li>Purab Facing (16–25 Floors): ₹300/sq.ft</li>
+        <li>Park Facing (01–15 Floors): ₹300/sq.ft</li>
+        <li>100FT Road Facing: ₹300/sq.ft (16–25 Floors)</li>
+      </ul>
+      <b>💡 Note:</b>
+      <ul>
+        <li>2nd Car Parking: ₹10,00,000 (Optional)</li>
+        <li>First Year Maintenance: ₹4/sq.ft</li>
+        <li>Transfer Charges: ₹200/sq.ft (if applicable)</li>
+        <li>All Govt. Taxes, GST, Stamp Duty extra as per norms.</li>
+      </ul>
+    </div>`, 'mohali');
+
+  
+  addProject(30.654413454838195, 76.74938103933046, '🏢 Noble Callista', `
+    <div class="popup-content">
+      <h4>Noble Callista, IT City, Sector 66-B, Mohali</h4>
+      <b>📐 Apartments (Super Area):</b>
+      <ul>
+        <li>3+1 BHK (2850 sq.ft.) – Price on Request</li>
+        <li>4+1 BHK (3500 sq.ft.) – Price on Request</li>
+        <li>5+1 BHK with Private Lift (5000 sq.ft.) – Price on Request</li>
+      </ul>
+      <b>📐 Sky Villas (Super Area):</b>
+      <ul>
+        <li>4 BHK Duplex (5700 sq.ft.)</li>
+        <li>5 BHK Duplex (7000 sq.ft.)</li>
+        <li>6 BHK Duplex (10000 sq.ft.)</li>
+      </ul>
+      <b>💰 Add-On Charges:</b>
+      <ul>
+        <li>Parking: ₹350/sq.ft (Apartments), ₹20L (Optional)</li>
+        <li>Club Membership: ₹50/sq.ft</li>
+        <li>Power Backup: ₹60/sq.ft</li>
+        <li>Maintenance (1 Year): ₹40/sq.ft</li>
+        <li>Smart Home: ₹25/sq.ft</li>
+        <li>IFMS, EDC, IDC, Fire: ₹25/sq.ft each</li>
+        <li>Total Benefits: Apartments ₹1600/sq.ft | Villas ₹2500/sq.ft</li>
+      </ul>
+      <b>📅 Payment Plans:</b>
+      <ul>
+        <li><b>Construction Linked Plan (CLP):</b> 10%, 10%, 10%, 10%, 5%x6, 5%x4, 10% at Possession</li>
+        <li><b>Time Linked Plan (TLP):</b> 10%, 60%, 20%, 10%</li>
+      </ul>
+      <b>📌 Additional Info:</b>
+      <ul>
+        <li>Transfer Charges: ₹200/sq.ft</li>
+        <li>Private Lift in Select Units</li>
+        <li>Steam Bath in 5BHK Master Washroom</li>
+        <li>Home Automation, Modular Kitchen, D.G.U Glass, Smart Lighting</li>
+      </ul>
+    </div>`, 'mohali');
+
+  
+  addProject(30.66120998501165, 76.69875479454541, '🏡 Noble Willasa (Villa)', `
+    <div class="popup-content">
+      <h4>Noble Willasa, Mohali</h4>
+      <b>📐 Configuration:</b>
+      <ul>
+        <li>3 BHK (Stilt + 4 Floors)</li>
+        <li>Size: 2050 sq.ft.</li>
+        <li>Price: ₹1.70 Cr</li>
+      </ul>
+      <b>📌 Key Highlights:</b>
+      <ul>
+        <li>Luxury Independent Floor Living</li>
+        <li>Spacious Layout with Premium Finishes</li>
+      </ul>
+    </div>`, 'mohali');
+
+  
+  addProject(30.670943729842534, 76.70488277789937, '🏢 Mohali Royal Towers', `
+    <div class="popup-content">
+      <h4>Mohali Royal Towers</h4>
+      <b>📐 Configuration:</b>
+      <ul>
+        <li>3 BHK + 3 Bath (includes Car Parking, Modular Kitchen, 3 Cupboards)</li>
+        <li>Super Built-up Area: 1750 sq.ft. + 330 sq.ft.</li>
+        <li>Basic Sale Price: ₹1.35 Cr</li>
+      </ul>
+      <b>📌 FPC Charges:</b>
+      <ul>
+        <li>1st Floor: ₹2,00,000 + Add. Area</li>
+        <li>2nd Floor: ₹2,50,000</li>
+        <li>3rd Floor: ₹2,00,000</li>
+        <li>4th Floor: ₹1,75,000</li>
+        <li>10th Floor: ₹1,75,000</li>
+        <li>11th Floor: ₹2,00,000</li>
+        <li>12th Floor: ₹2,50,000</li>
+        <li>PLC PF/Corner: 5% of BSP</li>
+      </ul>
+      <b>💰 One Time Charges:</b>
+      <ul>
+        <li>EDC (₹75/sq.ft): ₹1,56,000</li>
+        <li>IFMS: ₹1,04,000</li>
+        <li>Power Backup, F.F. & Misc.: ₹1,50,000</li>
+        <li>Covered Car Parking: ₹2,50,000</li>
+      </ul>
+      <b>📅 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>Booking Amount: 10% of BSP + GST</li>
+        <li>Allotment (within 15 days): 10% of BSP + GST</li>
+        <li>On Completion of Foundation: 10% + GST</li>
+        <li>On Completion of 1st Floor: 10% + GST</li>
+        <li>On Completion of 3rd Floor: 10% + GST</li>
+        <li>On Completion of 6th Floor: 10% + GST</li>
+        <li>On Completion of 9th Floor: 10% + GST</li>
+        <li>On Completion of 12th Floor: 10% + GST + Charges</li>
+        <li>On Completion of Tiles & Finishing Work: 10% + GST</li>
+        <li>On Completion of Sanitary Ware & Electrical: 5% + GST</li>
+        <li>On Possession: 5% + GST</li>
+      </ul>
+      <b>📝 Notes:</b>
+      <ul>
+        <li>Registration, Property Tax, Late Fee etc. extra</li>
+        <li>Annual Maintenance: ₹1.80/sq.ft + GST</li>
+        <li>Payment to be made in favour of Mohali Royal Towers</li>
+      </ul>
+    </div>`, 'mohali');
+
+  
+  addProject(30.6454559045916, 76.7943219368724, '🧱 SBP City of Dreams (Plots)', `
+    <div class="popup-content">
+      <h4>SBP City of Dreams - Plots, Zirakpur</h4>
+      <b>📐 Plot Sizes Available:</b>
+      <ul>
+        <li>100 गज</li>
+        <li>125 गज</li>
+        <li>150 गज</li>
+      </ul>
+      <b>💰 Rate:</b> ₹59,000 / गज
+      <br><br>
+      <b>📌 Category:</b> Residential Plots
+    </div>`, 'zirakpur');
+
+  // Add all your projects here (the existing addProject calls)
+  addProject(30.646047342929155, 76.7915340450432, '🏡 Prakrit Townhouses', `
+    <div class="popup-content">
+      <h4>Prakrit Townhouses</h4>
+      <b>📐 Unit Sizes & Prices:</b>
+      <ul>
+        <li>100 गज: ₹1,40,00,000</li>
+        <li>115 गज: ₹1,49,00,000</li>
+      </ul>
+      <b>📅 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>10% on Booking</li>
+        <li>15% within a Month</li>
+        <li>10% on Start of Construction</li>
+        <li>10% on Completion of Foundations till Plinth</li>
+        <li>10% on Laying of Ground Floor Slab</li>
+        <li>10% on Laying of First Floor Slab</li>
+        <li>15% on Completion of Brickwork</li>
+        <li>10% on Completion of Flooring</li>
+        <li>10% on Offer of Possession</li>
+      </ul>
+      <b>💰 Other Charges:</b>
+      <ul>
+        <li>Club Membership: ₹75,000</li>
+        <li>IFMS: ₹35,000</li>
+        <li>Power Backup: ₹75,000</li>
+        <li>Preferred Location Charges (PLC): Optional</li>
+      </ul>
+    </div>`);
+
+  // Add all other projects similarly...
+  // ... (include all your existing addProject calls here)
+
+  // After adding all projects, render them initially
+  
+  addProject(30.67527478825703, 76.72892196816596, '🏢 Medallion Aurum', `
+    <div class="popup-content">
+      <h4>Medallion Aurum, Mohali</h4>
+      <b>📐 Unit Sizes:</b>
+      <ul>
+        <li>3+1 BHK: 2950 sq.ft.</li>
+        <li>4+1 BHK: 3900 sq.ft.</li>
+      </ul>
+      <b>💰 Rate:</b> ₹11,000 / sq.ft.
+      <b>📜 Construction Linked Plan:</b>
+      <ul>
+        <li>Starts with 25% within 30 days</li>
+        <li>Then milestone-based payments (Raft, Stilt, 3rd–18th floor, Plumbing, P.O. Work, Possession)</li>
+      </ul>
+      <b>🏗️ Specifications Highlights:</b>
+      <ul>
+        <li>Earthquake-resistant RCC frame</li>
+        <li>Double-height lobby, branded lifts (Mitsubishi/Kone)</li>
+        <li>Modular kitchen, Italian tile flooring, toughened glass, video door phone</li>
+        <li>Branded CP fittings (Grohe/Kohler)</li>
+        <li>False ceilings with ambient lighting</li>
+      </ul>
+    </div>
+  `, 'mohali');
+
+
+  addProject(30.677040577696488, 76.73595551234078, '🏢 Medallion Nova', `
+    <div class="popup-content">
+      <h4>Medallion Nova, Mohali</h4>
+      <b>📐 Unit Sizes:</b>
+      <ul>
+        <li>3 BHK: 1990 sq.ft.</li>
+        <li>3 BHK + Study: 2497 sq.ft.</li>
+      </ul>
+      <b>💰 Rate:</b> ₹10,500 / sq.ft.
+      <b>📜 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>25% of Sale Price within 30 Days</li>
+        <li>10% on Start of Raft</li>
+        <li>10% on Completion of Stilt</li>
+        <li>5% on Completion of 2nd Floor</li>
+        <li>5% on Completion of 4th Floor</li>
+        <li>5% on Completion of 6th Floor</li>
+        <li>5% on Completion of 8th Floor</li>
+        <li>5% on Completion of 10th Floor</li>
+        <li>5% on Completion of 12th Floor</li>
+        <li>10% on Start of Top Floor</li>
+        <li>10% on Start of Plumbing Work</li>
+        <li>5% on Possession</li>
+      </ul>
+      <b>📌 Preferential Location Charges (PLC):</b>
+      <ul>
+        <li>1st Floor: ₹3,50,000</li>
+        <li>2nd Floor: ₹1,50,000</li>
+        <li>3rd Floor: ₹1,00,000</li>
+        <li>12th Floor: ₹1,00,000</li>
+        <li>13th Floor: ₹1,50,000</li>
+        <li>14th Floor: ₹3,50,000</li>
+        <li>Garden Facing (1st to Top Floor): 5% of BSP</li>
+      </ul>
+      <b>💰 Other Charges:</b>
+      <ul>
+        <li>IFMS: ₹2,00,000</li>
+      </ul>
+    </div>
+  `, 'mohali');
+
+  
+  addProject(30.647595007547544, 76.73911562120115, '🏢 The Medallion', `
+    <div class="popup-content">
+      <h4>The Medallion, Mohali</h4>
+      <b>💰 Rate:</b> ₹10,000 / sq.ft.
+      <b>📜 Construction Linked Payment Plan:</b>
+      <ul>
+        <li>₹5 Lakhs on Booking</li>
+        <li>30% of Sale Price (Including Booking Amount) within 30 Days</li>
+        <li>10% on Completion of Stilt</li>
+        <li>10% on Casting of 5th Floor</li>
+        <li>15% on Casting of 10th Floor</li>
+        <li>15% on Casting of 15th Floor</li>
+        <li>15% on Casting of 20th Floor</li>
+        <li>5% + IFMS + PLC + Other Charges on Offer of Possession</li>
+      </ul>
+    </div>
+  `, 'mohali');
+
+  applyFilters();
+
+  function toggleFilters() {
+    var filterDiv = document.getElementById("filters");
+    if (filterDiv.style.display === "none") {
+      filterDiv.style.display = "block";
+    } else {
+      filterDiv.style.display = "none";
+    }
+  }
+
+</script>
+</body>
+</html>
